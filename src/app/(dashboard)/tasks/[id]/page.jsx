@@ -49,7 +49,6 @@ export default function TaskDetailPage({ params }) {
   const [task, setTask] = useState(null);
   const [creator, setCreator] = useState(null);
   const [assignee, setAssignee] = useState(null);
-  const [activityLogs, setActivityLogs] = useState([]);
   const [users, setUsers] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -72,18 +71,13 @@ export default function TaskDetailPage({ params }) {
 
       setTask(taskData);
 
-      // Fetch users in parallel
+      // Fetch users
       const profileIds = [taskData.created_by, taskData.assigned_to].filter(Boolean);
-      const [profilesResult, logsResult] = await Promise.all([
+      const [profilesResult] = await Promise.all([
         supabase
           .from('profiles')
           .select('id, full_name, email')
           .in('id', profileIds.length > 0 ? profileIds : ['none']),
-        supabase
-          .from('activity_logs')
-          .select('*')
-          .eq('entity_id', resolvedParams.id)
-          .order('created_at', { ascending: false }),
       ]);
 
       const profileMap = {};
@@ -91,7 +85,6 @@ export default function TaskDetailPage({ params }) {
       setUsers(profileMap);
       setCreator(profileMap[taskData.created_by] || null);
       setAssignee(taskData.assigned_to ? profileMap[taskData.assigned_to] : null);
-      setActivityLogs(logsResult.data || []);
       setLoading(false);
     }
     fetchData();
@@ -179,42 +172,6 @@ export default function TaskDetailPage({ params }) {
               <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
                 {task.description || 'No description provided.'}
               </p>
-            </CardContent>
-          </Card>
-
-          {/* Activity Timeline */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {activityLogs.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">
-                  No activity recorded yet.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {activityLogs.map((log) => {
-                    const logUser = users[log.user_id];
-                    return (
-                      <div key={log.id} className="flex items-start gap-3">
-                        <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                          <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <p className="text-sm">
-                            <span className="font-medium">{logUser?.full_name || 'Unknown'}</span>{' '}
-                            <span className="text-muted-foreground">{log.action.replace('_', ' ')}</span>
-                          </p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {log.created_at ? format(new Date(log.created_at), 'MMM d, yyyy h:mm a') : ''}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>

@@ -11,6 +11,5 @@ export const QUERY_KEYS = {
   tenants: () => ['tenants'],
   tenantDetail: (tenantId) => ['tenant', tenantId],
   dashboardStats: (tenantId) => ['dashboard-stats', tenantId],
-  activityLogs: (tenantId) => ['activity-logs', tenantId],
   profile: (userId) => ['profile', userId],
 };

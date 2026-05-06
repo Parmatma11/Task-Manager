@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { StatsCard } from '@/components/dashboard/stats-card';
 import { TaskBarChart, TaskPieChart } from '@/components/dashboard/task-chart';
-import { ActivityFeed } from '@/components/dashboard/activity-feed';
 import { useAuthStore } from '@/store/auth-store';
 import { useRole } from '@/lib/hooks/use-role';
 import { createClient } from '@/lib/supabase/client';
@@ -256,7 +255,7 @@ function AdminDashboard({ tenant }) {
       <div>
         <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Overview of {tenant?.name}&apos;s progress and activity.
+          Overview of {tenant?.name}&apos;s progress and tasks.
         </p>
       </div>
 
@@ -272,10 +271,7 @@ function AdminDashboard({ tenant }) {
         <TaskPieChart />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <ActivityFeed />
-        </div>
+      <div className="grid gap-6 lg:grid-cols-1">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Top Assignees</CardTitle>

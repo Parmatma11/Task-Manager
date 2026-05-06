@@ -49,7 +49,6 @@ export const ROUTES = {
   TASK_DETAIL: (id) => `/tasks/${id}`,
   USERS: '/users',
   TENANTS: '/tenants',
-  ACTIVITY: '/activity',
   SETTINGS: '/settings',
 };
 

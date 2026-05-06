@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, CheckSquare, Users, Building2, Activity, Settings, Zap,
+  LayoutDashboard, CheckSquare, Users, Building2, Settings, Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/store/ui-store';
@@ -17,7 +17,6 @@ const NAV_ITEMS = [
   { label: 'Tasks', href: ROUTES.TASKS, icon: CheckSquare, requiredRole: ['admin', 'user'] },
   { label: 'Users', href: ROUTES.USERS, icon: Users, requiredRole: ['super_admin', 'admin'] },
   { label: 'Tenants', href: ROUTES.TENANTS, icon: Building2, requiredRole: ['super_admin'] },
-  { label: 'Activity', href: ROUTES.ACTIVITY, icon: Activity, requiredRole: ['super_admin', 'admin'] },
   { label: 'Settings', href: ROUTES.SETTINGS, icon: Settings },
 ];
 

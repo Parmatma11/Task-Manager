@@ -14,7 +14,7 @@ export async function POST(request) {
     }
 
     // In demo mode, return mock response
-    // With Supabase: create task, log activity, revalidateTag('tasks')
+    // With Supabase: create task, revalidateTag('tasks')
     return NextResponse.json(
       {
         data: { id: `task-${Date.now()}`, ...validated.data },

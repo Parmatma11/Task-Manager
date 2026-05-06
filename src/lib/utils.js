@@ -77,15 +77,6 @@ export function getStatusColor(status) {
   return colors[status] || '';
 }
 
-/**
- * Format a date for display in activity logs.
- * @param {string|Date} dateString
- * @returns {string}
- */
-export function formatActivityDate(dateString) {
-  if (!dateString) return '';
-  return formatDistanceToNow(new Date(dateString), { addSuffix: true });
-}
 
 /**
  * Generate initials from a full name.
