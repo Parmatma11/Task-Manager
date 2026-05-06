@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: "TaskFlow — Task Management System",
-  description: "A production-ready, multi-tenant task management system with role-based access control, real-time updates, and beautiful UI.",
+  description: "A multi-tenant task management system with role-based access control.",
   keywords: "task management, project management, kanban, team collaboration",
 };
 
