@@ -1,7 +1,6 @@
 'use client';
 
 import { StatsCard } from '@/components/dashboard/stats-card';
-import { TaskBarChart, TaskPieChart } from '@/components/dashboard/task-chart';
 import { useAuthStore } from '@/store/auth-store';
 import { useRole } from '@/lib/hooks/use-role';
 import { createClient } from '@/lib/supabase/client';
@@ -24,6 +23,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/query-keys';
 import { format } from 'date-fns';
+import { UNASSIGNED_TENANT_SLUG } from '@/lib/constants';
 
 // ─── SUPER ADMIN DASHBOARD ───────────────────────────
 function SuperAdminDashboard() {
@@ -35,7 +35,7 @@ function SuperAdminDashboard() {
 
       const [usersResult, tenantsResult, tasksResult] = await Promise.all([
         supabase.from('profiles').select('id, full_name, email, role, tenant_id, created_at').order('created_at', { ascending: false }),
-        supabase.from('tenants').select('id'),
+        supabase.from('tenants').select('id').neq('slug', UNASSIGNED_TENANT_SLUG),
         supabase.from('tasks').select('id, status').is('deleted_at', null),
       ]);
 
@@ -259,10 +259,6 @@ function AdminDashboard({ tenant }) {
         <StatsCard title="Overdue" value={stats.overdue} icon={AlertTriangle} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <TaskBarChart />
-        <TaskPieChart />
-      </div>
 
       <div className="grid gap-6 lg:grid-cols-1">
         <Card>
