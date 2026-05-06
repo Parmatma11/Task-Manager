@@ -4,7 +4,6 @@ import { use, useState, useEffect } from 'react';
 import { notFound, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/auth-store';
-import { TaskStatusBadge } from '@/components/tasks/task-status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

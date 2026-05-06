@@ -3,26 +3,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, CheckSquare, Users, Building2,
-  Settings, ChevronLeft, ChevronRight, Zap,
+  ChevronLeft, ChevronRight, Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/store/ui-store';
 import { useRole } from '@/lib/hooks/use-role';
 import { useTenant } from '@/lib/hooks/use-tenant';
 import { ROUTES } from '@/lib/constants';
+import { NAV_ITEMS } from '@/lib/navigation';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 
-const NAV_ITEMS = [
-  { label: 'Dashboard', href: ROUTES.DASHBOARD, icon: LayoutDashboard },
-  { label: 'Tasks', href: ROUTES.TASKS, icon: CheckSquare, requiredRole: ['admin', 'user'] },
-  { label: 'Users', href: ROUTES.USERS, icon: Users, requiredRole: ['super_admin', 'admin'] },
-  { label: 'Tenants', href: ROUTES.TENANTS, icon: Building2, requiredRole: ['super_admin'] },
-  { label: 'Settings', href: ROUTES.SETTINGS, icon: Settings },
-];
 
 export function Sidebar() {
   const pathname = usePathname();

@@ -1,3 +1,37 @@
+/**
+ * @typedef {Object} Profile
+ * @property {string} id
+ * @property {string} full_name
+ * @property {string} email
+ * @property {string} role
+ * @property {string} [tenant_id]
+ * @property {string} created_at
+ */
+
+/**
+ * @typedef {Object} Tenant
+ * @property {string} id
+ * @property {string} name
+ * @property {string} slug
+ * @property {string} created_at
+ */
+
+/**
+ * @typedef {Object} Task
+ * @property {string} id
+ * @property {string} title
+ * @property {string} [description]
+ * @property {string} status
+ * @property {string} priority
+ * @property {string} [assigned_to]
+ * @property {string} created_by
+ * @property {string} tenant_id
+ * @property {string} [due_date]
+ * @property {string} created_at
+ * @property {string} [updated_at]
+ * @property {string} [deleted_at]
+ */
+
 // Role hierarchy for the multi-tenant system
 export const ROLES = {
   SUPER_ADMIN: 'super_admin',

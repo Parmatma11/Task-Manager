@@ -13,8 +13,8 @@ export async function POST(request) {
       );
     }
 
-    // In demo mode, return mock response
-    // With Supabase: create task, revalidateTag('tasks')
+    // Return mock data for demo purposes when Supabase is not configured.
+    // In production, this would be handled by the Supabase client.
     return NextResponse.json(
       {
         data: { id: `task-${Date.now()}`, ...validated.data },

@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+// TODO: Connect to real Supabase data. Currently using placeholder data for visualization.
 const STATUS_CHART_DATA = [
   { name: 'Week 1', todo: 5, in_progress: 3, completed: 7 },
   { name: 'Week 2', todo: 4, in_progress: 6, completed: 5 },
