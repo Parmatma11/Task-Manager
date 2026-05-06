@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { userRoleSchema } from '@/lib/validations';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function PATCH(request, { params }) {
   try {
@@ -14,6 +15,17 @@ export async function PATCH(request, { params }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Rate limiting: 10 requests per minute per requester
+    const { isRateLimited } = await rateLimit({
+      uniqueToken: `role-change-${user.id}`,
+      interval: 60 * 1000,
+      limit: 10,
+    });
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
     }
 
     const { data: profile } = await supabase

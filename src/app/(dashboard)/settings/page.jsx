@@ -18,11 +18,6 @@ import { toast } from 'sonner';
 
 export default function SettingsPage() {
   const profile = useAuthStore((state) => state.profile);
-  const [fullName, setFullName] = useState(profile?.full_name || '');
-
-  const handleProfileSave = () => {
-    toast.success('Profile updated successfully');
-  };
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -47,7 +42,7 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Profile Information</CardTitle>
-              <CardDescription>Update your personal details.</CardDescription>
+              <CardDescription>View your personal account details.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Avatar */}
@@ -58,9 +53,6 @@ export default function SettingsPage() {
                       {getInitials(profile?.full_name)}
                     </AvatarFallback>
                   </Avatar>
-                  <button className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary/90 transition-colors">
-                    <Camera className="h-3.5 w-3.5" />
-                  </button>
                 </div>
                 <div>
                   <p className="text-sm font-semibold">{profile?.full_name}</p>
@@ -79,8 +71,9 @@ export default function SettingsPage() {
                   <Label htmlFor="fullName">Full Name</Label>
                   <Input
                     id="fullName"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
+                    value={profile?.full_name || ''}
+                    disabled
+                    className="opacity-60"
                   />
                 </div>
                 <div className="space-y-2">
@@ -93,8 +86,6 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-
-              <Button onClick={handleProfileSave}>Save Changes</Button>
             </CardContent>
           </Card>
         </TabsContent>

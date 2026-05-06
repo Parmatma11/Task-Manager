@@ -40,6 +40,24 @@ export default function LoginPage() {
       return;
     }
 
+    // Rate limit check
+    try {
+      const limitRes = await fetch('/api/auth/check-limit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login' }),
+      });
+      
+      if (!limitRes.ok) {
+        const limitData = await limitRes.json();
+        toast.error(limitData.error || 'Too many attempts. Please try again later.');
+        return;
+      }
+    } catch (e) {
+      console.error('Rate limit check failed:', e);
+      // Fallback: allow login if limit check fails (don't block legitimate users on network error)
+    }
+
     const { data: authData, error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,

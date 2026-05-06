@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function PATCH(request) {
   try {
@@ -15,6 +16,17 @@ export async function PATCH(request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Rate limiting: 20 requests per minute per requester
+    const { isRateLimited } = await rateLimit({
+      uniqueToken: `assign-tenant-${user.id}`,
+      interval: 60 * 1000,
+      limit: 20,
+    });
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
     }
 
     const { data: profile } = await supabase

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { rateLimit } from '@/lib/rate-limit';
 
 const UNASSIGNED_TENANT_SLUG = '__unassigned__';
 
 /**
  * Ensures a profile row exists for an authenticated user.
- * If profiles.tenant_id is NOT NULL (migration not run), uses a system tenant.
  */
 export async function POST(request) {
   try {
@@ -20,6 +20,17 @@ export async function POST(request) {
       return NextResponse.json({ error: 'userId and email are required' }, { status: 400 });
     }
 
+    // Rate limiting: 3 requests per minute per userId
+    const { isRateLimited } = await rateLimit({
+      uniqueToken: `ensure-profile-${userId}`,
+      interval: 60 * 1000,
+      limit: 3,
+    });
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
     // Check if profile already exists
     const { data: existing } = await adminClient
       .from('profiles')
@@ -31,7 +42,7 @@ export async function POST(request) {
       return NextResponse.json({ message: 'Profile already exists' }, { status: 200 });
     }
 
-    // Try inserting with tenant_id = null first (works if migration was applied)
+    // Try inserting with tenant_id = null first
     const { error: nullInsertError } = await adminClient
       .from('profiles')
       .insert({
@@ -64,7 +75,6 @@ export async function POST(request) {
         .single();
 
       if (tenantError) {
-        console.error('Failed to create system tenant:', tenantError);
         return NextResponse.json({ error: 'Failed to create system tenant' }, { status: 500 });
       }
       systemTenant = newTenant;
@@ -82,7 +92,6 @@ export async function POST(request) {
       });
 
     if (insertError) {
-      console.error('Failed to create profile:', insertError);
       return NextResponse.json({ error: insertError.message }, { status: 400 });
     }
 
