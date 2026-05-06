@@ -36,9 +36,28 @@ export function TaskFilters({ filters, onFilterChange }) {
     fetchUsers();
   }, [tenant?.id]);
 
+  const [searchTerm, setSearchTerm] = useState(filters.search || '');
+
+  // Debounce search term
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (searchTerm !== filters.search) {
+        onFilterChange({ ...filters, search: searchTerm });
+      }
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(handler);
+  }, [searchTerm, onFilterChange, filters]);
+
+  // Sync local state with parent filters (for clear all)
+  useEffect(() => {
+    setSearchTerm(filters.search || '');
+  }, [filters.search]);
+
   const activeFilterCount = Object.values(filters).filter((v) => v && v !== 'all').length;
 
   const handleClearAll = () => {
+    setSearchTerm('');
     onFilterChange({ status: 'all', priority: 'all', assignedTo: 'all', search: '' });
   };
 
@@ -50,8 +69,8 @@ export function TaskFilters({ filters, onFilterChange }) {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search tasks..."
-            value={filters.search || ''}
-            onChange={(e) => onFilterChange({ ...filters, search: e.target.value })}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 h-9 bg-muted/50 border-transparent focus:border-border"
           />
         </div>

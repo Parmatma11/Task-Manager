@@ -2,10 +2,7 @@ import { createBrowserClient } from '@supabase/ssr';
 
 let client = null;
 
-/**
- * Returns a singleton Supabase client for browser usage.
- * Falls back to demo mode if env vars are not set.
- */
+
 export function createClient() {
   if (client) return client;
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { TaskFilters } from '@/components/tasks/task-filters';
 import { TaskForm } from '@/components/tasks/task-form';
@@ -26,8 +27,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { QUERY_KEYS } from '@/lib/query-keys';
 
 export default function TasksPage() {
+  const queryClient = useQueryClient();
   const tenant = useAuthStore((state) => state.tenant);
   const profile = useAuthStore((state) => state.profile);
   const { isUser, canCreateTasks, canDeleteTasks, canEditAllTasks } = useRole();
@@ -38,79 +41,87 @@ export default function TasksPage() {
     assignedTo: 'all',
     search: '',
   });
-  const [tasks, setTasks] = useState([]);
-  const [users, setUsers] = useState({});
-  const [loading, setLoading] = useState(true);
 
-  const fetchTasks = useCallback(async () => {
-    const supabase = createClient();
-    if (!supabase || !tenant?.id) return;
-
-    let query = supabase
-      .from('tasks')
-      .select('*')
-      .eq('tenant_id', tenant.id)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-
-    // Users only see tasks assigned to them
-    if (isUser) {
-      query = query.eq('assigned_to', profile?.id);
-    }
-
-    if (filters.status !== 'all') query = query.eq('status', filters.status);
-    if (filters.priority !== 'all') query = query.eq('priority', filters.priority);
-    if (filters.assignedTo !== 'all') query = query.eq('assigned_to', filters.assignedTo);
-    if (filters.search) query = query.ilike('title', `%${filters.search}%`);
-
-    const { data, error } = await query;
-    if (error) {
-      console.error('Failed to fetch tasks:', error);
-      return;
-    }
-    setTasks(data || []);
-    setLoading(false);
-  }, [tenant?.id, profile?.id, isUser, filters]);
-
-  useEffect(() => {
-    async function fetchUsers() {
+  // Use TanStack Query for fetching tasks
+  const { data: tasks = [], isLoading: tasksLoading } = useQuery({
+    queryKey: [...QUERY_KEYS.tasks(tenant?.id), filters, isUser, profile?.id],
+    queryFn: async () => {
       const supabase = createClient();
-      if (!supabase || !tenant?.id) return;
+      if (!supabase || !tenant?.id) return [];
+
+      let query = supabase
+        .from('tasks')
+        .select('*')
+        .eq('tenant_id', tenant.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+
+      // Users only see tasks assigned to them
+      if (isUser) {
+        query = query.eq('assigned_to', profile?.id);
+      }
+
+      if (filters.status !== 'all') query = query.eq('status', filters.status);
+      if (filters.priority !== 'all') query = query.eq('priority', filters.priority);
+      if (filters.assignedTo !== 'all') query = query.eq('assigned_to', filters.assignedTo);
+      if (filters.search) query = query.ilike('title', `%${filters.search}%`);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!tenant?.id,
+  });
+
+  // Fetch users for mapping
+  const { data: usersMap = {} } = useQuery({
+    queryKey: QUERY_KEYS.usersByTenant(tenant?.id),
+    queryFn: async () => {
+      const supabase = createClient();
+      if (!supabase || !tenant?.id) return {};
       const { data } = await supabase
         .from('profiles')
         .select('id, full_name')
         .eq('tenant_id', tenant.id);
+      
       const map = {};
       (data || []).forEach((u) => { map[u.id] = u; });
-      setUsers(map);
-    }
-    fetchUsers();
-  }, [tenant?.id]);
+      return map;
+    },
+    enabled: !!tenant?.id,
+  });
 
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+  // Mutations
+  const deleteMutation = useMutation({
+    mutationFn: async (taskId) => {
+      const supabase = createClient();
+      if (!supabase) return;
+      const { error } = await supabase
+        .from('tasks')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks(tenant?.id) });
+      toast.success('Task deleted');
+    },
+    onError: () => toast.error('Failed to delete task'),
+  });
 
-  const handleDeleteTask = async (taskId) => {
+  const handleDeleteTask = (taskId) => {
     if (!canDeleteTasks) {
       toast.error('You do not have permission to delete tasks');
       return;
     }
-    const supabase = createClient();
-    if (!supabase) return;
-    const { error } = await supabase
-      .from('tasks')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', taskId);
-    if (error) {
-      toast.error('Failed to delete task');
-      return;
-    }
-    toast.success('Task deleted');
-    fetchTasks();
+    deleteMutation.mutate(taskId);
   };
 
-  if (loading) {
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks(tenant?.id) });
+  };
+
+  if (tasksLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-32" />
@@ -121,7 +132,6 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
@@ -134,7 +144,6 @@ export default function TasksPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* View toggle */}
           <div className="flex items-center rounded-lg border border-border bg-muted/50 p-0.5">
             <Button variant={activeView === 'list' ? 'secondary' : 'ghost'} size="sm" className="h-7 px-2.5"
               onClick={() => setActiveView('list')}>
@@ -170,7 +179,6 @@ export default function TasksPage() {
         </Badge>
       </div>
 
-      {/* Content */}
       {tasks.length === 0 ? (
         <EmptyState icon={CheckSquare}
           title={isUser ? 'No tasks assigned to you' : 'No tasks found'}
@@ -180,7 +188,7 @@ export default function TasksPage() {
           ) : undefined}
         />
       ) : activeView === 'kanban' ? (
-        <KanbanBoard tasks={tasks} onUpdate={fetchTasks} />
+        <KanbanBoard tasks={tasks} onUpdate={handleRefresh} />
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <Table>
@@ -196,7 +204,7 @@ export default function TasksPage() {
             </TableHeader>
             <TableBody>
               {tasks.map((task, index) => {
-                const assignee = task.assigned_to ? users[task.assigned_to] : null;
+                const assignee = task.assigned_to ? usersMap[task.assigned_to] : null;
                 const isTaskOverdue = isOverdue(task.due_date) && task.status !== 'completed';
                 return (
                   <TableRow key={task.id} className="group animate-fade-in" style={{ animationDelay: `${index * 30}ms` }}>
@@ -261,8 +269,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Task form sheet — only for admin/super_admin */}
-      {canCreateTasks && <TaskForm onSuccess={fetchTasks} />}
+      {canCreateTasks && <TaskForm onSuccess={handleRefresh} />}
     </div>
   );
 }

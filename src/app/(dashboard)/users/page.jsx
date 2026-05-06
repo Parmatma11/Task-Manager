@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/auth-store';
 import { useRole } from '@/lib/hooks/use-role';
 import { createClient } from '@/lib/supabase/client';
@@ -29,11 +30,12 @@ import {
   DropdownMenuSubContent, DropdownMenuGroup,
 } from '@/components/ui/dropdown-menu';
 import {
-  Users, MoreHorizontal, Shield, ShieldCheck, User, UserPlus, Building2,
+  Users, MoreHorizontal, Shield, ShieldCheck, User, Building2, Search, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
+import { QUERY_KEYS } from '@/lib/query-keys';
 
 const ROLE_CONFIG = {
   [ROLES.SUPER_ADMIN]: { icon: ShieldCheck, label: 'Super Admin', color: 'text-violet-500 bg-violet-500/10' },
@@ -42,114 +44,125 @@ const ROLE_CONFIG = {
 };
 
 export default function UsersPage() {
+  const queryClient = useQueryClient();
+  const profile = useAuthStore((state) => state.profile);
   const tenant = useAuthStore((state) => state.tenant);
   const { isSuperAdmin, isAdmin } = useRole();
-  const [users, setUsers] = useState([]);
-  const [tenants, setTenants] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [assigningUser, setAssigningUser] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [formData, setFormData] = useState({ email: '', fullName: '', role: ROLES.USER });
   const [assignTenantId, setAssignTenantId] = useState('');
 
-  const fetchUsers = async () => {
-    const supabase = createClient();
-    if (!supabase) return;
-
-    if (isSuperAdmin) {
-      // Super admin: fetch ALL users + their tenant info
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*, tenants(id, name, slug)')
-        .order('created_at', { ascending: false });
-      if (!error) setUsers(data || []);
-    } else if (tenant?.id) {
-      // Admin: fetch only tenant users
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('tenant_id', tenant.id)
-        .order('created_at', { ascending: false });
-      if (!error) setUsers(data || []);
-    }
-    setLoading(false);
-  };
-
-  const fetchTenants = async () => {
-    if (!isSuperAdmin) return;
-    const supabase = createClient();
-    if (!supabase) return;
-    const { data } = await supabase.from('tenants').select('id, name, slug').neq('slug', UNASSIGNED_TENANT_SLUG).order('name');
-    setTenants(data || []);
-  };
-
+  // Debounce search
   useEffect(() => {
-    fetchUsers();
-    fetchTenants();
-  }, [tenant?.id, isSuperAdmin]);
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [search]);
 
-  const handleInviteUser = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      const response = await fetch('/api/users/invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || result.message || 'Failed to invite user');
-      toast.success('Invitation sent successfully');
-      setIsInviteOpen(false);
-      setFormData({ email: '', fullName: '', role: ROLES.USER });
-      fetchUsers();
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  // Use TanStack Query for fetching users
+  const { data: users = [], isLoading: usersLoading } = useQuery({
+    queryKey: [...QUERY_KEYS.usersByTenant(tenant?.id || 'all'), debouncedSearch, isSuperAdmin],
+    queryFn: async () => {
+      const supabase = createClient();
+      if (!supabase) return [];
 
-  const handleChangeRole = async (userId, newRole) => {
-    try {
+      let query;
+      if (isSuperAdmin) {
+        query = supabase
+          .from('profiles')
+          .select('*, tenants(id, name, slug)')
+          .order('created_at', { ascending: false });
+      } else if (tenant?.id) {
+        query = supabase
+          .from('profiles')
+          .select('*')
+          .eq('tenant_id', tenant.id)
+          .order('created_at', { ascending: false });
+      } else {
+        return [];
+      }
+
+      if (debouncedSearch) {
+        query = query.or(`full_name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%`);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isSuperAdmin || !!tenant?.id,
+  });
+
+  // Fetch tenants for super admin assignment
+  const { data: allTenants = [] } = useQuery({
+    queryKey: QUERY_KEYS.tenants(),
+    queryFn: async () => {
+      const supabase = createClient();
+      if (!supabase) return [];
+      const { data } = await supabase
+        .from('tenants')
+        .select('id, name, slug')
+        .neq('slug', UNASSIGNED_TENANT_SLUG)
+        .order('name');
+      return data || [];
+    },
+    enabled: isSuperAdmin,
+  });
+
+
+  const changeRoleMutation = useMutation({
+    mutationFn: async ({ userId, role }) => {
       const response = await fetch(`/api/users/${userId}/role`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: newRole }),
+        body: JSON.stringify({ role }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || result.message || 'Failed to update role');
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.usersByTenant(tenant?.id || 'all') });
       toast.success('User role updated');
-      fetchUsers();
-    } catch (error) {
-      toast.error(error.message);
-    }
-  };
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
-  const handleAssignTenant = async () => {
-    if (!assigningUser || !assignTenantId) return;
-    setIsSubmitting(true);
-    try {
+  const assignTenantMutation = useMutation({
+    mutationFn: async ({ userId, tenantId }) => {
       const response = await fetch('/api/users/assign-tenant', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: assigningUser.id, tenantId: assignTenantId }),
+        body: JSON.stringify({ userId, tenantId }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || result.message || 'Failed to assign tenant');
+      return result;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.usersByTenant(tenant?.id || 'all') });
       toast.success(result.message);
       setIsAssignOpen(false);
       setAssigningUser(null);
       setAssignTenantId('');
-      fetchUsers();
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setIsSubmitting(false);
-    }
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const isSubmitting = assignTenantMutation.isPending;
+
+
+  const handleChangeRole = (userId, newRole) => {
+    changeRoleMutation.mutate({ userId, role: newRole });
+  };
+
+  const handleAssignTenant = () => {
+    if (!assigningUser || !assignTenantId) return;
+    assignTenantMutation.mutate({ userId: assigningUser.id, tenantId: assignTenantId });
   };
 
   const openAssignDialog = (user) => {
@@ -162,7 +175,7 @@ export default function UsersPage() {
     return <RoleGuard allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN]}><div /></RoleGuard>;
   }
 
-  if (loading) {
+  if (usersLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
@@ -183,43 +196,23 @@ export default function UsersPage() {
           </p>
         </div>
 
-        {/* Admin-only: Invite user to their tenant */}
-        {isAdmin && (
-          <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
-            <DialogTrigger render={<Button className="gap-1.5" />}>
-              <UserPlus className="h-4 w-4" />Invite User
-            </DialogTrigger>
-            <DialogContent>
-              <form onSubmit={handleInviteUser}>
-                <DialogHeader>
-                  <DialogTitle>Invite User</DialogTitle>
-                  <DialogDescription>Send an email invitation to a new team member.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <Input id="fullName" placeholder="John Doe" value={formData.fullName}
-                      onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" type="email" placeholder="john@example.com" value={formData.email}
-                      onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))} required />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsInviteOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Inviting...' : 'Invite User'}</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
       </div>
 
-      <Badge variant="outline" className="text-xs">
-        {users.length} member{users.length !== 1 ? 's' : ''}
-      </Badge>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Badge variant="outline" className="text-xs w-fit">
+          {users.length} member{users.length !== 1 ? 's' : ''}
+        </Badge>
+
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search users..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9 bg-muted/50 border-transparent focus:border-border"
+          />
+        </div>
+      </div>
 
       {/* Assign Tenant Dialog (super_admin only) */}
       <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
@@ -236,7 +229,7 @@ export default function UsersPage() {
               <Select value={assignTenantId} onValueChange={setAssignTenantId}>
                 <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
                 <SelectContent>
-                  {tenants.map((t) => (
+                  {allTenants.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -253,7 +246,11 @@ export default function UsersPage() {
       </Dialog>
 
       {users.length === 0 ? (
-        <EmptyState icon={Users} title="No users yet" description="Users will appear here after signing up." />
+        <EmptyState
+          icon={Users}
+          title={search ? "No users found" : "No users yet"}
+          description={search ? "Try a different search term." : "Users will appear here after signing up."}
+        />
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <Table>
@@ -272,6 +269,7 @@ export default function UsersPage() {
                 const roleConfig = ROLE_CONFIG[user.role] || ROLE_CONFIG[ROLES.USER];
                 const RoleIcon = roleConfig.icon;
                 const userTenant = user.tenants || null;
+                const isSelf = user.id === profile?.id;
 
                 return (
                   <TableRow key={user.id} className="group animate-fade-in" style={{ animationDelay: `${index * 40}ms` }}>
@@ -283,7 +281,14 @@ export default function UsersPage() {
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="text-sm font-medium">{user.full_name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">{user.full_name}</p>
+                            {isSelf && (
+                              <Badge variant="secondary" className="h-4 px-1 text-[9px] font-bold bg-primary/10 text-primary border-none">
+                                You
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">{user.email}</p>
                         </div>
                       </div>
@@ -317,38 +322,50 @@ export default function UsersPage() {
                         <DropdownMenuTrigger className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-muted cursor-pointer outline-none">
                           <MoreHorizontal className="h-4 w-4" />
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {isSuperAdmin && (
+                        <DropdownMenuContent align="end" className="w-48">
+                          {isSelf ? (
+                            <DropdownMenuItem onClick={() => window.location.href = '/settings'}>
+                              <User className="mr-2 h-3.5 w-3.5" />My Settings
+                            </DropdownMenuItem>
+                          ) : (
                             <>
-                              <DropdownMenuGroup>
+                              {((isSuperAdmin) || (isAdmin && user.role !== ROLES.USER)) && (
                                 <DropdownMenuSub>
-                                  <DropdownMenuSubTrigger>Change Role</DropdownMenuSubTrigger>
+                                  <DropdownMenuSubTrigger>
+                                    <Shield className="mr-2 h-3.5 w-3.5" />
+                                    Change Role
+                                  </DropdownMenuSubTrigger>
                                   <DropdownMenuSubContent>
-                                    <DropdownMenuItem onClick={() => handleChangeRole(user.id, ROLES.USER)}>
-                                      <User className="mr-2 h-3.5 w-3.5" />User
-                                    </DropdownMenuItem>
+                                    {isSuperAdmin && (
+                                      <DropdownMenuItem onClick={() => handleChangeRole(user.id, ROLES.SUPER_ADMIN)}>
+                                        <ShieldCheck className="mr-2 h-3.5 w-3.5" />Super Admin
+                                      </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuItem onClick={() => handleChangeRole(user.id, ROLES.ADMIN)}>
                                       <Shield className="mr-2 h-3.5 w-3.5" />Admin
                                     </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleChangeRole(user.id, ROLES.USER)}>
+                                      <User className="mr-2 h-3.5 w-3.5" />User
+                                    </DropdownMenuItem>
                                   </DropdownMenuSubContent>
                                 </DropdownMenuSub>
-                              </DropdownMenuGroup>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => openAssignDialog(user)}>
-                                <Building2 className="mr-2 h-3.5 w-3.5" />Assign Organization
-                              </DropdownMenuItem>
+                              )}
+
+                              {isSuperAdmin && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => openAssignDialog(user)}>
+                                    <Building2 className="mr-2 h-3.5 w-3.5" />Assign Organization
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+
+                              {!isSelf && (
+                                <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                                  <Trash2 className="mr-2 h-3.5 w-3.5" />Deactivate User
+                                </DropdownMenuItem>
+                              )}
                             </>
-                          )}
-                          {isAdmin && !isSuperAdmin && (
-                            <DropdownMenuGroup>
-                              <DropdownMenuSub>
-                                <DropdownMenuSubTrigger>Change Role</DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent>
-                                  <DropdownMenuItem onClick={() => handleChangeRole(user.id, ROLES.USER)}>User</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleChangeRole(user.id, ROLES.ADMIN)}>Admin</DropdownMenuItem>
-                                </DropdownMenuSubContent>
-                              </DropdownMenuSub>
-                            </DropdownMenuGroup>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>

@@ -88,6 +88,6 @@ export const ROUTES = {
 
 export const REFETCH_DELAY_MS = 300;
 export const DEBOUNCE_DELAY_MS = 300;
-export const STALE_TIME_MS = 1000 * 60 * 2;
-export const GC_TIME_MS = 1000 * 60 * 10;
+export const STALE_TIME_MS = 1000 * 30;
+export const GC_TIME_MS = 1000 * 60;
 export const CACHE_REVALIDATE_SECONDS = 300;

@@ -24,7 +24,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 
-// ─── SUPER ADMIN DASHBOARD ────────────────────────────
 function SuperAdminDashboard() {
   const [stats, setStats] = useState({ totalUsers: 0, totalTenants: 0, totalTasks: 0, unassignedUsers: 0 });
   const [recentUsers, setRecentUsers] = useState([]);
@@ -78,7 +77,6 @@ function SuperAdminDashboard() {
         </p>
       </div>
 
-      {/* Stats grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard title="Total Users" value={stats.totalUsers} icon={Users} />
         <StatsCard title="Organizations" value={stats.totalTenants} icon={Building2} />
@@ -86,7 +84,6 @@ function SuperAdminDashboard() {
         <StatsCard title="Unassigned Users" value={stats.unassignedUsers} icon={AlertTriangle} />
       </div>
 
-      {/* Quick actions */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="group hover:shadow-md transition-shadow">
           <CardContent className="p-5">
@@ -154,7 +151,6 @@ function SuperAdminDashboard() {
         )}
       </div>
 
-      {/* Recent users */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Recent Users</CardTitle>

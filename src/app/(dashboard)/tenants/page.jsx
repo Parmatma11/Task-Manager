@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRole } from '@/lib/hooks/use-role';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -32,127 +33,135 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
+import { QUERY_KEYS } from '@/lib/query-keys';
 
 export default function TenantsPage() {
+  const queryClient = useQueryClient();
   const { isSuperAdmin } = useRole();
-  const [tenants, setTenants] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [search]);
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState(null);
   
   // Form state
   const [formData, setFormData] = useState({ name: '', slug: '' });
 
-  const fetchTenants = async () => {
-    const supabase = createClient();
-    if (!supabase) return;
+  // Use TanStack Query for fetching
+  const { data: tenants = [], isLoading: loading } = useQuery({
+    queryKey: [...QUERY_KEYS.tenants(), debouncedSearch],
+    queryFn: async () => {
+      const supabase = createClient();
+      if (!supabase) return [];
 
-    const { data, error } = await supabase
-      .from('tenants')
-      .select('*')
-      .neq('slug', UNASSIGNED_TENANT_SLUG)
-      .order('created_at', { ascending: false });
+      let query = supabase
+        .from('tenants')
+        .select('*')
+        .neq('slug', UNASSIGNED_TENANT_SLUG)
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Failed to fetch tenants:', error);
-      return;
-    }
-    setTenants(data || []);
-    setLoading(false);
-  };
+      if (debouncedSearch) {
+        query = query.or(`name.ilike.%${debouncedSearch}%,slug.ilike.%${debouncedSearch}%`);
+      }
 
-  useEffect(() => {
-    fetchTenants();
-  }, []);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
-  const handleCreateTenant = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: async (newTenant) => {
       const response = await fetch('/api/tenants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(newTenant),
       });
-
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || result.message || 'Failed to create organization');
-      }
-
+      if (!response.ok) throw new Error(result.error || result.message || 'Failed to create organization');
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants() });
       toast.success('Organization created successfully');
       setIsCreateOpen(false);
       setFormData({ name: '', slug: '' });
-      fetchTenants();
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
-  const handleUpdateTenant = async (e) => {
-    e.preventDefault();
-    if (!selectedTenant) return;
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch(`/api/tenants/${selectedTenant.id}`, {
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }) => {
+      const response = await fetch(`/api/tenants/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(data),
       });
-
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || result.message || 'Failed to update organization');
-      }
-
+      if (!response.ok) throw new Error(result.error || result.message || 'Failed to update organization');
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants() });
       toast.success('Organization updated successfully');
       setIsEditOpen(false);
       setSelectedTenant(null);
       setFormData({ name: '', slug: '' });
-      fetchTenants();
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
-  const handleDeleteTenant = async () => {
-    if (!selectedTenant) return;
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch(`/api/tenants/${selectedTenant.id}`, {
+  const deleteMutation = useMutation({
+    mutationFn: async (id) => {
+      const response = await fetch(`/api/tenants/${id}`, {
         method: 'DELETE',
       });
-
       if (!response.ok) {
         const result = await response.json();
         throw new Error(result.error || result.message || 'Failed to delete organization');
       }
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tenants() });
       toast.success('Organization deleted successfully');
       setIsDeleteOpen(false);
       setSelectedTenant(null);
-      fetchTenants();
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setIsSubmitting(false);
-    }
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const isSubmitting = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+
+  const handleCreateTenant = (e) => {
+    e.preventDefault();
+    createMutation.mutate(formData);
+  };
+
+  const handleUpdateTenant = (e) => {
+    e.preventDefault();
+    if (!selectedTenant) return;
+    updateMutation.mutate({ id: selectedTenant.id, data: formData });
+  };
+
+  const handleDeleteTenant = () => {
+    if (!selectedTenant) return;
+    deleteMutation.mutate(selectedTenant.id);
   };
 
   const updateSlug = (name) => {
@@ -218,7 +227,7 @@ export default function TenantsPage() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Organization Name</Label>
+                  <Label htmlFor="name">Organization Name *</Label>
                   <Input
                     id="name"
                     placeholder="Acme Corp"
@@ -228,7 +237,7 @@ export default function TenantsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="slug">Slug (URL friendly)</Label>
+                  <Label htmlFor="slug">Slug (URL friendly) *</Label>
                   <Input
                     id="slug"
                     placeholder="acme-corp"
@@ -249,6 +258,22 @@ export default function TenantsPage() {
             </form>
           </DialogContent>
         </Dialog>
+      </div>
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Badge variant="outline" className="text-xs w-fit">
+          {tenants.length} organization{tenants.length !== 1 ? 's' : ''}
+        </Badge>
+        
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search organizations..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9 bg-muted/50 border-transparent focus:border-border"
+          />
+        </div>
       </div>
 
       {/* Edit Dialog */}
@@ -318,15 +343,11 @@ export default function TenantsPage() {
         </DialogContent>
       </Dialog>
 
-      <Badge variant="outline" className="text-xs">
-        {tenants.length} organization{tenants.length !== 1 ? 's' : ''}
-      </Badge>
-
       {tenants.length === 0 ? (
         <EmptyState
           icon={Building2}
-          title="No organizations yet"
-          description="Organizations are created when users sign up or by super admins."
+          title={search ? "No matches found" : "No organizations yet"}
+          description={search ? "Try a different search term." : "Organizations are created when users sign up or by super admins."}
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

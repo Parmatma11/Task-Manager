@@ -35,6 +35,7 @@ export function Navbar() {
   const profile = useAuthStore((state) => state.profile);
   const logout = useAuthStore((state) => state.logout);
   const { setMobileNavOpen } = useUiStore();
+  const [search, setSearch] = useState('');
   const { isSuperAdmin } = useRole();
   const { allTenants, switchTenant, tenant: currentTenant } = useTenant();
   const [mounted, setMounted] = useState(false);
@@ -42,6 +43,17 @@ export function Navbar() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Debounced navigation to tasks page
+  useEffect(() => {
+    if (!search) return;
+    const handler = setTimeout(() => {
+      // For a simple demo, we just log it or navigate
+      // In a real app, this might open a global search modal
+      console.log('Global search:', search);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [search]);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur-md md:px-6">
@@ -88,18 +100,20 @@ export function Navbar() {
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search tasks, users..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           className="h-9 pl-9 bg-muted/50 border-transparent focus:border-border"
         />
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        {/* Notifications */}
+        {/* Notifications
         <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
           <Bell className="h-5 w-5" />
           <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
             3
           </span>
-        </Button>
+        </Button> */}
 
         {/* Theme toggle */}
         {mounted && (

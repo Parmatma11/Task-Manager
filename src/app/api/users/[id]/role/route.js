@@ -26,6 +26,11 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ error: 'Forbidden: Admin only' }, { status: 403 });
     }
 
+    // Prevent self-role modification
+    if (user.id === targetUserId) {
+      return NextResponse.json({ error: 'Forbidden: You cannot change your own role' }, { status: 403 });
+    }
+
     const body = await request.json();
     const validated = userRoleSchema.safeParse(body);
 
@@ -43,9 +48,14 @@ export async function PATCH(request, { params }) {
         .select('tenant_id')
         .eq('id', targetUserId)
         .single();
-        
+
       if (!targetProfile || targetProfile.tenant_id !== profile.tenant_id) {
         return NextResponse.json({ error: 'Forbidden: Cannot manage users outside your organization' }, { status: 403 });
+      }
+
+      // Prevent admins from changing role of normal users
+      if (targetProfile.role === 'user') {
+        return NextResponse.json({ error: 'Forbidden: Admins cannot change roles of normal users' }, { status: 403 });
       }
     }
 
