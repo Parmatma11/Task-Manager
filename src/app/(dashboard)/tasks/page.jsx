@@ -146,11 +146,15 @@ export default function TasksPage() {
         <div className="flex items-center gap-2">
           <div className="flex items-center rounded-lg border border-border bg-muted/50 p-0.5">
             <Button variant={activeView === 'list' ? 'secondary' : 'ghost'} size="sm" className="h-7 px-2.5"
-              onClick={() => setActiveView('list')}>
+              onClick={() => setActiveView('list')}
+              aria-label="List View"
+            >
               <LayoutList className="h-4 w-4" />
             </Button>
             <Button variant={activeView === 'kanban' ? 'secondary' : 'ghost'} size="sm" className="h-7 px-2.5"
-              onClick={() => setActiveView('kanban')}>
+              onClick={() => setActiveView('kanban')}
+              aria-label="Kanban Board View"
+            >
               <LayoutGrid className="h-4 w-4" />
             </Button>
           </div>
