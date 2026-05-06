@@ -112,8 +112,6 @@ export default function UsersPage() {
     },
     enabled: isSuperAdmin,
   });
-
-
   const changeRoleMutation = useMutation({
     mutationFn: async ({ userId, role }) => {
       const response = await fetch(`/api/users/${userId}/role`, {
@@ -227,7 +225,11 @@ export default function UsersPage() {
             <div className="space-y-2">
               <Label>Organization</Label>
               <Select value={assignTenantId} onValueChange={setAssignTenantId}>
-                <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select organization">
+                    {allTenants.find(t => t.id === assignTenantId)?.name}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   {allTenants.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -259,7 +261,6 @@ export default function UsersPage() {
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
                 {isSuperAdmin && <TableHead>Organization</TableHead>}
-                <TableHead>Status</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
@@ -308,11 +309,6 @@ export default function UsersPage() {
                       </TableCell>
                     )}
                     <TableCell>
-                      <Badge variant={user.is_active ? 'default' : 'secondary'} className="text-[10px]">
-                        {user.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
                       <span className="text-sm text-muted-foreground">
                         {user.created_at ? format(new Date(user.created_at), 'yyyy-MM-dd') : ''}
                       </span>
@@ -336,11 +332,6 @@ export default function UsersPage() {
                                     Change Role
                                   </DropdownMenuSubTrigger>
                                   <DropdownMenuSubContent>
-                                    {isSuperAdmin && (
-                                      <DropdownMenuItem onClick={() => handleChangeRole(user.id, ROLES.SUPER_ADMIN)}>
-                                        <ShieldCheck className="mr-2 h-3.5 w-3.5" />Super Admin
-                                      </DropdownMenuItem>
-                                    )}
                                     <DropdownMenuItem onClick={() => handleChangeRole(user.id, ROLES.ADMIN)}>
                                       <Shield className="mr-2 h-3.5 w-3.5" />Admin
                                     </DropdownMenuItem>
@@ -360,11 +351,6 @@ export default function UsersPage() {
                                 </>
                               )}
 
-                              {!isSelf && (
-                                <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                                  <Trash2 className="mr-2 h-3.5 w-3.5" />Deactivate User
-                                </DropdownMenuItem>
-                              )}
                             </>
                           )}
                         </DropdownMenuContent>

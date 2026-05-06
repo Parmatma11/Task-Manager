@@ -67,8 +67,9 @@ export function TaskForm({ onSuccess }) {
 
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name')
+        .select('id, full_name, role')
         .eq('tenant_id', tenant.id)
+        .eq('role', 'user') // Only allow assignment to users
         .eq('is_active', true);
 
       setUsers(data || []);
@@ -222,7 +223,9 @@ export function TaskForm({ onSuccess }) {
                 onValueChange={(value) => setValue('status', value)}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {TASK_STATUS_LABELS[watch('status')]}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(TASK_STATUS).map(([key, value]) => (
@@ -241,7 +244,9 @@ export function TaskForm({ onSuccess }) {
                 onValueChange={(value) => setValue('priority', value)}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {TASK_PRIORITY_LABELS[watch('priority')]}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(TASK_PRIORITY).map(([key, value]) => (
@@ -262,7 +267,11 @@ export function TaskForm({ onSuccess }) {
               onValueChange={(value) => setValue('assignedTo', value === 'unassigned' ? null : value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select assignee" />
+                <SelectValue placeholder="Select assignee">
+                  {watch('assignedTo') 
+                    ? users.find(u => u.id === watch('assignedTo'))?.full_name 
+                    : 'Unassigned'}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="unassigned">Unassigned</SelectItem>

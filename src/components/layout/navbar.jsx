@@ -1,7 +1,8 @@
 'use client';
 
-import { Moon, Sun, Menu, Bell, Search, Building2, Check } from 'lucide-react';
+import { Moon, Sun, Menu, Bell, Building2, Check } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -35,7 +36,6 @@ export function Navbar() {
   const profile = useAuthStore((state) => state.profile);
   const logout = useAuthStore((state) => state.logout);
   const { setMobileNavOpen } = useUiStore();
-  const [search, setSearch] = useState('');
   const { isSuperAdmin } = useRole();
   const { allTenants, switchTenant, tenant: currentTenant } = useTenant();
   const [mounted, setMounted] = useState(false);
@@ -44,16 +44,7 @@ export function Navbar() {
     setMounted(true);
   }, []);
 
-  // Debounced navigation to tasks page
-  useEffect(() => {
-    if (!search) return;
-    const handler = setTimeout(() => {
-      // For a simple demo, we just log it or navigate
-      // In a real app, this might open a global search modal
-      console.log('Global search:', search);
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [search]);
+  const pathname = usePathname();
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur-md md:px-6">
@@ -68,8 +59,8 @@ export function Navbar() {
         <Menu className="h-5 w-5" />
       </Button>
 
-      {/* Tenant Switcher for Super Admin */}
-      {isSuperAdmin && allTenants.length > 0 && (
+      {/* Tenant Switcher for Super Admin - only visible on tasks page */}
+      {isSuperAdmin && pathname === '/tasks' && allTenants.length > 0 && (
         <div className="flex items-center gap-2">
           <Building2 className="h-4 w-4 text-muted-foreground" />
           <Select
@@ -81,7 +72,9 @@ export function Navbar() {
             }}
           >
             <SelectTrigger className="h-9 w-[180px] bg-muted/50 border-transparent focus:ring-0 focus:ring-offset-0">
-              <SelectValue placeholder="Select context" />
+              <SelectValue placeholder="Select context">
+                {currentTenant?.name || 'Global View'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Global View</SelectItem>
@@ -94,17 +87,6 @@ export function Navbar() {
           </Select>
         </div>
       )}
-
-      {/* Search bar */}
-      <div className="relative hidden flex-1 md:flex md:max-w-md ml-4">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search tasks, users..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-9 pl-9 bg-muted/50 border-transparent focus:border-border"
-        />
-      </div>
 
       <div className="ml-auto flex items-center gap-2">
         {/* Notifications

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { StatsCard } from '@/components/dashboard/stats-card';
 import { TaskBarChart, TaskPieChart } from '@/components/dashboard/task-chart';
 import { useAuthStore } from '@/store/auth-store';
@@ -13,7 +12,6 @@ import {
   AlertTriangle,
   Building2,
   Users,
-  ShieldCheck,
   ArrowRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,16 +21,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@/lib/query-keys';
+import { format } from 'date-fns';
 
+// ─── SUPER ADMIN DASHBOARD ───────────────────────────
 function SuperAdminDashboard() {
-  const [stats, setStats] = useState({ totalUsers: 0, totalTenants: 0, totalTasks: 0, unassignedUsers: 0 });
-  const [recentUsers, setRecentUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchPlatformStats() {
+  const { data: dashboardData, isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.dashboardStats('platform'),
+    queryFn: async () => {
       const supabase = createClient();
-      if (!supabase) return;
+      if (!supabase) return null;
 
       const [usersResult, tenantsResult, tasksResult] = await Promise.all([
         supabase.from('profiles').select('id, full_name, email, role, tenant_id, created_at').order('created_at', { ascending: false }),
@@ -44,18 +43,20 @@ function SuperAdminDashboard() {
       const allTenants = tenantsResult.data || [];
       const allTasks = tasksResult.data || [];
 
-      setStats({
-        totalUsers: allUsers.length,
-        totalTenants: allTenants.length,
-        totalTasks: allTasks.length,
-        unassignedUsers: allUsers.filter(u => !u.tenant_id).length,
-      });
+      return {
+        stats: {
+          totalUsers: allUsers.length,
+          totalTenants: allTenants.length,
+          totalTasks: allTasks.length,
+          unassignedUsers: allUsers.filter(u => !u.tenant_id).length,
+        },
+        recentUsers: allUsers.slice(0, 8),
+      };
+    },
+  });
 
-      setRecentUsers(allUsers.slice(0, 8));
-      setLoading(false);
-    }
-    fetchPlatformStats();
-  }, []);
+  const stats = dashboardData?.stats || { totalUsers: 0, totalTenants: 0, totalTasks: 0, unassignedUsers: 0 };
+  const recentUsers = dashboardData?.recentUsers || [];
 
   if (loading) {
     return (
@@ -190,17 +191,11 @@ function SuperAdminDashboard() {
 
 // ─── ADMIN DASHBOARD ──────────────────────────────────
 function AdminDashboard({ tenant }) {
-  const [stats, setStats] = useState({ total: 0, completed: 0, inProgress: 0, overdue: 0 });
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchStats() {
+  const { data: adminData, isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.dashboardStats(tenant?.id),
+    queryFn: async () => {
       const supabase = createClient();
-      if (!supabase || !tenant?.id) {
-        setLoading(false);
-        return;
-      }
+      if (!supabase || !tenant?.id) return null;
 
       const [tasksResult, usersResult] = await Promise.all([
         supabase.from('tasks').select('status, due_date, assigned_to').eq('tenant_id', tenant.id).is('deleted_at', null),
@@ -211,14 +206,14 @@ function AdminDashboard({ tenant }) {
       const users = usersResult.data || [];
       const now = new Date();
 
-      setStats({
+      const stats = {
         total: tasks.length,
         completed: tasks.filter((t) => t.status === 'completed').length,
         inProgress: tasks.filter((t) => t.status === 'in_progress').length,
         overdue: tasks.filter(
           (t) => t.due_date && new Date(t.due_date) < now && t.status !== 'completed'
         ).length,
-      });
+      };
 
       // Build leaderboard
       const counts = {};
@@ -228,12 +223,14 @@ function AdminDashboard({ tenant }) {
       const ranked = users
         .map((u) => ({ ...u, taskCount: counts[u.id] || 0 }))
         .sort((a, b) => b.taskCount - a.taskCount);
-      setLeaderboard(ranked);
 
-      setLoading(false);
-    }
-    fetchStats();
-  }, [tenant?.id]);
+      return { stats, leaderboard: ranked };
+    },
+    enabled: !!tenant?.id,
+  });
+
+  const stats = adminData?.stats || { total: 0, completed: 0, inProgress: 0, overdue: 0 };
+  const leaderboard = adminData?.leaderboard || [];
 
   if (loading) {
     return (
@@ -305,16 +302,11 @@ function AdminDashboard({ tenant }) {
 
 // ─── USER DASHBOARD ────────────────────────────────────
 function UserDashboard({ profile, tenant }) {
-  const [myTasks, setMyTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchMyTasks() {
+  const { data: myTasks = [], isLoading: loading } = useQuery({
+    queryKey: ['my-tasks', tenant?.id, profile?.id],
+    queryFn: async () => {
       const supabase = createClient();
-      if (!supabase || !tenant?.id || !profile?.id) {
-        setLoading(false);
-        return;
-      }
+      if (!supabase || !tenant?.id || !profile?.id) return [];
 
       const { data } = await supabase
         .from('tasks')
@@ -324,11 +316,10 @@ function UserDashboard({ profile, tenant }) {
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      setMyTasks(data || []);
-      setLoading(false);
-    }
-    fetchMyTasks();
-  }, [tenant?.id, profile?.id]);
+      return data || [];
+    },
+    enabled: !!tenant?.id && !!profile?.id,
+  });
 
   if (loading) {
     return (

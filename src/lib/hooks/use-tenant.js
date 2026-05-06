@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/auth-store';
 import { createClient } from '@/lib/supabase/client';
 import { UNASSIGNED_TENANT_SLUG } from '@/lib/constants';
+import { QUERY_KEYS } from '@/lib/query-keys';
 
 /**
  * Hook providing tenant context — current tenant and switch capability.
@@ -11,16 +12,15 @@ export function useTenant() {
   const tenant = useAuthStore((state) => state.tenant);
   const switchTenant = useAuthStore((state) => state.switchTenant);
   const profile = useAuthStore((state) => state.profile);
-  const [allTenants, setAllTenants] = useState([]);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const isRealTenant = !!tenant && tenant.slug !== UNASSIGNED_TENANT_SLUG;
 
-  useEffect(() => {
-    async function fetchTenants() {
-      if (!isSuperAdmin) return;
+  const { data: allTenants = [] } = useQuery({
+    queryKey: QUERY_KEYS.tenants(),
+    queryFn: async () => {
       const supabase = createClient();
-      if (!supabase) return;
+      if (!supabase) return [];
 
       const { data } = await supabase
         .from('tenants')
@@ -28,10 +28,10 @@ export function useTenant() {
         .neq('slug', UNASSIGNED_TENANT_SLUG)
         .order('name');
 
-      setAllTenants(data || []);
-    }
-    fetchTenants();
-  }, [isSuperAdmin]);
+      return data || [];
+    },
+    enabled: isSuperAdmin,
+  });
 
   return {
     tenant: isRealTenant ? tenant : null,

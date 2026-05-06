@@ -59,9 +59,9 @@ export async function PATCH(request, { params }) {
       }
     }
 
-    // Prevent changing role to super_admin unless requester is super_admin
-    if (validated.data.role === 'super_admin' && profile.role !== 'super_admin') {
-      return NextResponse.json({ error: 'Forbidden: Only Super Admins can promote to Super Admin' }, { status: 403 });
+    // Prevent changing role to super_admin for everyone
+    if (validated.data.role === 'super_admin') {
+      return NextResponse.json({ error: 'Forbidden: Cannot promote users to Super Admin' }, { status: 403 });
     }
 
     const { data, error } = await supabase

@@ -6,7 +6,7 @@ import { createServerClient } from '@supabase/ssr';
  * Protects dashboard routes — redirects to /auth/login if no session.
  * Redirects authenticated users away from auth pages.
  */
-export async function middleware(request) {
+export async function proxy(request) {
   const { pathname } = request.nextUrl;
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -34,19 +34,19 @@ export async function middleware(request) {
     },
   });
 
-  // Refresh session (important for token renewal)
-  const { data: { session } } = await supabase.auth.getSession();
+  // Check user (also refreshes session if needed in SSR)
+  const { data: { user } } = await supabase.auth.getUser();
 
   const isAuthPage = pathname.startsWith('/auth');
 
-  // No session + accessing protected route → redirect to login
-  if (!session && !isAuthPage) {
+  // No user + accessing protected route → redirect to login
+  if (!user && !isAuthPage) {
     const loginUrl = new URL('/auth/login', request.url);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Has session + on auth page → redirect to dashboard
-  if (session && isAuthPage) {
+  // Has user + on auth page → redirect to dashboard
+  if (user && isAuthPage) {
     const dashboardUrl = new URL('/', request.url);
     return NextResponse.redirect(dashboardUrl);
   }

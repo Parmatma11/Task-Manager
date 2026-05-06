@@ -40,71 +40,80 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@/lib/query-keys';
 
 export default function TaskDetailPage({ params }) {
   const resolvedParams = use(params);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const tenant = useAuthStore((state) => state.tenant);
-  const [task, setTask] = useState(null);
-  const [creator, setCreator] = useState(null);
-  const [assignee, setAssignee] = useState(null);
-  const [users, setUsers] = useState({});
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchData() {
+  // Fetch task and profiles using useQuery
+  const { data: detailData, isLoading: loading } = useQuery({
+    queryKey: QUERY_KEYS.taskDetail(resolvedParams.id),
+    queryFn: async () => {
       const supabase = createClient();
-      if (!supabase) return;
+      if (!supabase) return null;
 
       // Fetch task
-      const { data: taskData, error } = await supabase
+      const { data: taskData, error: taskError } = await supabase
         .from('tasks')
         .select('*')
         .eq('id', resolvedParams.id)
         .single();
 
-      if (error || !taskData) {
-        setLoading(false);
-        return;
-      }
+      if (taskError || !taskData) return null;
 
-      setTask(taskData);
-
-      // Fetch users
+      // Fetch users involved
       const profileIds = [taskData.created_by, taskData.assigned_to].filter(Boolean);
-      const [profilesResult] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('id, full_name, email')
-          .in('id', profileIds.length > 0 ? profileIds : ['none']),
-      ]);
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', profileIds.length > 0 ? profileIds : ['none']);
 
       const profileMap = {};
-      (profilesResult.data || []).forEach((p) => { profileMap[p.id] = p; });
-      setUsers(profileMap);
-      setCreator(profileMap[taskData.created_by] || null);
-      setAssignee(taskData.assigned_to ? profileMap[taskData.assigned_to] : null);
-      setLoading(false);
-    }
-    fetchData();
-  }, [resolvedParams.id]);
+      (profiles || []).forEach((p) => { profileMap[p.id] = p; });
 
-  const handleStatusChange = async (newStatus) => {
-    const supabase = createClient();
-    if (!supabase || !task) return;
+      return {
+        task: taskData,
+        creator: profileMap[taskData.created_by] || null,
+        assignee: taskData.assigned_to ? profileMap[taskData.assigned_to] : null,
+      };
+    },
+    enabled: !!resolvedParams.id,
+  });
 
-    const { error } = await supabase
-      .from('tasks')
-      .update({ status: newStatus })
-      .eq('id', task.id);
+  const task = detailData?.task;
+  const creator = detailData?.creator;
+  const assignee = detailData?.assignee;
 
-    if (error) {
-      toast.error('Failed to update status');
-      return;
-    }
+  // Status mutation
+  const statusMutation = useMutation({
+    mutationFn: async (newStatus) => {
+      const supabase = createClient();
+      if (!supabase || !task) return;
 
-    setTask({ ...task, status: newStatus });
-    toast.success(`Status changed to ${TASK_STATUS_LABELS[newStatus]}`);
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status: newStatus })
+        .eq('id', task.id);
+
+      if (error) throw error;
+      return newStatus;
+    },
+    onSuccess: (newStatus) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.taskDetail(resolvedParams.id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.tasks(tenant?.id) });
+      toast.success(`Status changed to ${TASK_STATUS_LABELS[newStatus]}`);
+    },
+    onError: (err) => {
+      toast.error(err.message || 'Failed to update status');
+    },
+  });
+
+  const handleStatusChange = (newStatus) => {
+    statusMutation.mutate(newStatus);
   };
 
   if (loading) {
@@ -184,7 +193,9 @@ export default function TaskDetailPage({ params }) {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</p>
                 <Select value={task.status} onValueChange={handleStatusChange}>
                   <SelectTrigger className="h-9">
-                    <SelectValue />
+                    <SelectValue>
+                      {TASK_STATUS_LABELS[task.status]}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {Object.entries(TASK_STATUS).map(([key, value]) => (

@@ -27,8 +27,9 @@ export function TaskFilters({ filters, onFilterChange }) {
 
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name')
+        .select('id, full_name, role')
         .eq('tenant_id', tenant.id)
+        .eq('role', 'user') // Only show users in filters
         .eq('is_active', true);
 
       setUsers(data || []);
@@ -117,7 +118,11 @@ export function TaskFilters({ filters, onFilterChange }) {
           onValueChange={(value) => onFilterChange({ ...filters, assignedTo: value })}
         >
           <SelectTrigger className="w-[160px] h-9">
-            <SelectValue placeholder="Assignee" />
+            <SelectValue placeholder="Assignee">
+              {filters.assignedTo === 'all' 
+                ? 'All Assignees' 
+                : users.find(u => u.id === filters.assignedTo)?.full_name || 'Assignee'}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Assignees</SelectItem>
