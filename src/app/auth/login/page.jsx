@@ -70,36 +70,16 @@ export default function LoginPage() {
 
     const user = authData.user;
 
-    // Fetch profile + tenant from Supabase
-    let result = await fetchProfile(user.id);
+    // Fetch profile + tenant from Supabase (with fallback to ensure-profile API if needed)
+    const result = await fetchProfile(user.id, {
+      email: user.email,
+      fullName: user.user_metadata?.full_name || 'User'
+    });
 
     if (!result) {
-      // Profile missing — trigger may have failed (migration not applied).
-      // Attempt to create profile via API fallback.
-      console.log('Profile missing for user:', user.id, 'Attempting fallback...');
-      try {
-        const res = await fetch('/api/users/ensure-profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id, email: user.email, fullName: user.user_metadata?.full_name || 'User' }),
-        });
-        
-        const ensureData = await res.json();
-        if (res.ok) {
-          console.log('Profile creation fallback success:', ensureData);
-          result = await fetchProfile(user.id);
-        } else {
-          console.error('Profile creation fallback API error:', ensureData);
-        }
-      } catch (e) {
-        console.error('Profile creation fallback network error:', e);
-      }
-
-      if (!result) {
-        toast.error('Profile setup failed. Please check if you have run the fix-auth-migration.sql in Supabase.');
-        await supabase.auth.signOut();
-        return;
-      }
+      toast.error('Profile setup failed. Please contact support.');
+      await supabase.auth.signOut();
+      return;
     }
 
     // Login even if tenant is null (user is unassigned but valid)

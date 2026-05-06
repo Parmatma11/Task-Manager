@@ -68,6 +68,7 @@ export async function POST(request) {
       { status: 201 }
     );
   } catch (error) {
+    console.error('Tenants API error:', error);
     return NextResponse.json(
       { error: 'Internal server error', message: error.message },
       { status: 500 }

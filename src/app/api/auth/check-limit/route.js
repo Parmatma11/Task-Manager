@@ -8,7 +8,7 @@ import { rateLimit } from '@/lib/rate-limit';
 export async function POST(request) {
   try {
     const { action } = await request.json();
-    
+
     if (!action || !['login', 'signup'].includes(action)) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
@@ -17,22 +17,23 @@ export async function POST(request) {
     const forwarded = request.headers.get('x-forwarded-for');
     const ip = forwarded ? forwarded.split(',')[0] : '127.0.0.1';
 
-    // Rate limit: 5 attempts per 5 minutes per IP
+    // Rate limit: 10 attempts per 5 minutes per IP
     const { isRateLimited, remaining, resetTime } = await rateLimit({
       uniqueToken: `auth-${action}-${ip}`,
       interval: 5 * 60 * 1000,
-      limit: 5,
+      limit: 10,
     });
 
     if (isRateLimited) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Too many attempts. Please try again later.',
-        resetTime 
+        resetTime
       }, { status: 429 });
     }
 
     return NextResponse.json({ success: true, remaining }, { status: 200 });
   } catch (error) {
+    console.error('Rate limit API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

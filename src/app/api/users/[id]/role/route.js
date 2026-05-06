@@ -34,8 +34,8 @@ export async function PATCH(request, { params }) {
       .eq('id', user.id)
       .single();
 
-    if (!profile || (profile.role !== 'super_admin' && profile.role !== 'admin')) {
-      return NextResponse.json({ error: 'Forbidden: Admin only' }, { status: 403 });
+    if (!profile || profile.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Forbidden: Super Admin only' }, { status: 403 });
     }
 
     // Prevent self-role modification
@@ -53,27 +53,46 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // Check if target user is in the same tenant (unless requester is super_admin)
-    if (profile.role !== 'super_admin') {
-      const { data: targetProfile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .eq('id', targetUserId)
-        .single();
+    // Fetch target user's current role and tenant
+    const { data: targetProfile } = await supabase
+      .from('profiles')
+      .select('role, tenant_id')
+      .eq('id', targetUserId)
+      .single();
 
-      if (!targetProfile || targetProfile.tenant_id !== profile.tenant_id) {
-        return NextResponse.json({ error: 'Forbidden: Cannot manage users outside your organization' }, { status: 403 });
-      }
+    if (!targetProfile) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
 
-      // Prevent admins from changing role of normal users
-      if (targetProfile.role === 'user') {
-        return NextResponse.json({ error: 'Forbidden: Admins cannot change roles of normal users' }, { status: 403 });
-      }
+    // Protect Super Admin roles from modification (optional: could allow super_admin to demote another super_admin, but keeping it safe)
+    if (targetProfile.role === 'super_admin') {
+      // return NextResponse.json({ error: 'Forbidden: Super Admin roles are protected' }, { status: 403 });
     }
 
     // Prevent changing role to super_admin for everyone
     if (validated.data.role === 'super_admin') {
       return NextResponse.json({ error: 'Forbidden: Cannot promote users to Super Admin' }, { status: 403 });
+    }
+
+    // Enforce "One Admin per Tenant" rule
+    if (validated.data.role === 'admin' && targetProfile.role !== 'admin') {
+      if (!targetProfile.tenant_id) {
+        return NextResponse.json({ error: 'Cannot promote unassigned users to Admin. Assign to an organization first.' }, { status: 400 });
+      }
+
+      const { count, error: countError } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', targetProfile.tenant_id)
+        .eq('role', 'admin');
+
+      if (countError) throw countError;
+
+      if (count > 0) {
+        return NextResponse.json({ 
+          error: 'This organization already has an administrator. A tenant can only have one admin.' 
+        }, { status: 400 });
+      }
     }
 
     const { data, error } = await supabase
@@ -92,6 +111,7 @@ export async function PATCH(request, { params }) {
       { status: 200 }
     );
   } catch (error) {
+    console.error('Role Update API error:', error);
     return NextResponse.json(
       { error: 'Internal server error', message: error.message },
       { status: 500 }

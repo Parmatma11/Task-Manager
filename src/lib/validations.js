@@ -4,14 +4,14 @@ import { TASK_STATUS, TASK_PRIORITY, ROLES } from './constants';
 export const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-});
+}).strict();
 
 export const signupSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
+}).strict().refine((data) => data.password === data.confirmPassword, {
   message: 'Passwords do not match',
   path: ['confirmPassword'],
 });
@@ -23,7 +23,7 @@ export const taskSchema = z.object({
   priority: z.enum([TASK_PRIORITY.LOW, TASK_PRIORITY.MEDIUM, TASK_PRIORITY.HIGH, TASK_PRIORITY.URGENT]),
   assignedTo: z.string().uuid('Invalid assignee').nullable().optional(),
   dueDate: z.string().nullable().optional(),
-});
+}).strict();
 
 export const userInviteSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -38,7 +38,7 @@ export const userRoleSchema = z.object({
 export const tenantSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(100),
   slug: z.string().min(2).max(50).regex(/^[a-z0-9-]+$/, 'Slug can only contain lowercase letters, numbers, and hyphens'),
-});
+}).strict();
 
 export const profileSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters'),
@@ -49,7 +49,7 @@ export const passwordChangeSchema = z.object({
   currentPassword: z.string().min(6),
   newPassword: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
-}).refine((data) => data.newPassword === data.confirmPassword, {
+}).strict().refine((data) => data.newPassword === data.confirmPassword, {
   message: 'Passwords do not match',
   path: ['confirmPassword'],
 });

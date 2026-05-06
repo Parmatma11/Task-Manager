@@ -97,6 +97,7 @@ export async function POST(request) {
 
     return NextResponse.json({ message: 'Profile created' }, { status: 201 });
   } catch (error) {
+    console.error('Ensure Profile API error:', error);
     return NextResponse.json(
       { error: 'Internal server error', message: error.message },
       { status: 500 }

@@ -81,6 +81,7 @@ export default function UsersPage() {
           .from('profiles')
           .select('*')
           .eq('tenant_id', tenant.id)
+          .neq('role', ROLES.SUPER_ADMIN)
           .order('created_at', { ascending: false });
       } else {
         return [];
@@ -325,7 +326,7 @@ export default function UsersPage() {
                             </DropdownMenuItem>
                           ) : (
                             <>
-                              {((isSuperAdmin) || (isAdmin && user.role !== ROLES.USER)) && (
+                              {isSuperAdmin && (
                                 <DropdownMenuSub>
                                   <DropdownMenuSubTrigger>
                                     <Shield className="mr-2 h-3.5 w-3.5" />

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { getInitials } from '@/lib/utils';
+import { getInitials, calculateTaskStats } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -204,16 +204,7 @@ function AdminDashboard({ tenant }) {
 
       const tasks = tasksResult.data || [];
       const users = usersResult.data || [];
-      const now = new Date();
-
-      const stats = {
-        total: tasks.length,
-        completed: tasks.filter((t) => t.status === 'completed').length,
-        inProgress: tasks.filter((t) => t.status === 'in_progress').length,
-        overdue: tasks.filter(
-          (t) => t.due_date && new Date(t.due_date) < now && t.status !== 'completed'
-        ).length,
-      };
+      const stats = calculateTaskStats(tasks);
 
       // Build leaderboard
       const counts = {};
@@ -328,13 +319,7 @@ function UserDashboard({ profile, tenant }) {
     );
   }
 
-  const now = new Date();
-  const stats = {
-    total: myTasks.length,
-    completed: myTasks.filter(t => t.status === 'completed').length,
-    inProgress: myTasks.filter(t => t.status === 'in_progress').length,
-    overdue: myTasks.filter(t => t.due_date && new Date(t.due_date) < now && t.status !== 'completed').length,
-  };
+  const stats = calculateTaskStats(myTasks);
 
   return (
     <div className="space-y-6">

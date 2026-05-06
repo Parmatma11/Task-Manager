@@ -49,13 +49,14 @@ export const useAuthStore = create(
       /**
        * Fetch profile + tenant for a given user ID from Supabase.
        * Called after login or session restore.
-       * Handles users with no tenant (tenant_id=NULL).
+       * @param {string} userId
+       * @param {object} [fallbackData] - Optional data to use if profile needs to be ensured via API
        */
-      fetchProfile: async (userId) => {
+      fetchProfile: async (userId, fallbackData = null) => {
         const supabase = createClient();
         if (!supabase || !userId) return null;
 
-        const { data: profile, error } = await supabase
+        let { data: profile, error } = await supabase
           .from('profiles')
           .select('*, tenants(*)')
           .eq('id', userId)
@@ -66,12 +67,35 @@ export const useAuthStore = create(
           return null;
         }
 
-        if (!profile) {
-          // No profile row — user may not have completed signup or trigger not set up
-          return null;
+        // Fallback: If profile is missing and we have fallback data (or even if we don't, we can try to ensure)
+        if (!profile && fallbackData) {
+          console.log('Profile missing, attempting to ensure via API...');
+          try {
+            const res = await fetch('/api/users/ensure-profile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                userId, 
+                email: fallbackData.email, 
+                fullName: fallbackData.fullName || 'User' 
+              }),
+            });
+            
+            if (res.ok) {
+              const retry = await supabase
+                .from('profiles')
+                .select('*, tenants(*)')
+                .eq('id', userId)
+                .maybeSingle();
+              profile = retry.data;
+            }
+          } catch (e) {
+            console.error('Profile ensure fallback failed:', e);
+          }
         }
 
-        // tenant may be null for unassigned users — that's OK
+        if (!profile) return null;
+
         const tenant = profile.tenants || null;
         delete profile.tenants;
 

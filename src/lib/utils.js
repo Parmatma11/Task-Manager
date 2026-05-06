@@ -103,3 +103,21 @@ export function truncateText(text, maxLength = 100) {
   if (!text || text.length <= maxLength) return text || '';
   return text.slice(0, maxLength) + '…';
 }
+
+/**
+ * Calculate standard task statistics from an array of tasks.
+ * @param {Array} tasks - Array of task objects
+ * @returns {Object} Stats object
+ */
+export function calculateTaskStats(tasks) {
+  const now = new Date();
+  return {
+    total: tasks.length,
+    completed: tasks.filter((t) => t.status === TASK_STATUS.COMPLETED).length,
+    inProgress: tasks.filter((t) => t.status === TASK_STATUS.IN_PROGRESS).length,
+    todo: tasks.filter((t) => t.status === TASK_STATUS.TODO).length,
+    overdue: tasks.filter(
+      (t) => t.due_date && new Date(t.due_date) < now && t.status !== TASK_STATUS.COMPLETED
+    ).length,
+  };
+}
