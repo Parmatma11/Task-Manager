@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/rate-limit';
 
+export const runtime = 'edge';
+
 /**
  * Check rate limit for auth actions (login/signup)
  * Based on requester IP

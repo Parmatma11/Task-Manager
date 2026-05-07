@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rateLimit } from '@/lib/rate-limit';
 
+export const runtime = 'edge';
+
 const UNASSIGNED_TENANT_SLUG = '__unassigned__';
 
 /**
